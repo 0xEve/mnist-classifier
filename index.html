@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MNIST · تصنيف الأرقام</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">MNIST · Flask + PyTorch</p>
+    <h1>تصنيف الأرقام المكتوبة بخط اليد</h1>
+    <p class="sub">ارفع صورة رقم 28×28 بيكسل (زي شكل بيانات MNIST) وموديل PyTorch المدرّب هيتوقع الرقم.</p>
+  </header>
+
+  <div class="panel">
+    <label class="upload-btn" id="uploadBtn">
+      <input type="file" id="imageInput" accept="image/*">
+      رفع صورة
+    </label>
+    <div class="status" id="imgStatus">مفيش صورة متحمّلة لسه</div>
+  </div>
+
+  <div class="panel">
+    <div class="results" id="resultsArea">
+      <div class="empty-state" style="grid-column: 1 / -1;">هيظهر هنا التوقع بعد ما ترفع صورة</div>
+    </div>
+  </div>
+
+  <footer>
+    التوقع بيحصل على السيرفر عن طريق Flask، والموديل المحمّل هو نفس بنية وأوزان الموديل اللي دربته في PyTorch.
+  </footer>
+</div>
+
+<script>
+const imageInput = document.getElementById('imageInput');
+const imgStatus = document.getElementById('imgStatus');
+const resultsArea = document.getElementById('resultsArea');
+let pixelPreviewUrl = null;
+
+imageInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  pixelPreviewUrl = URL.createObjectURL(file);
+  imgStatus.textContent = 'جاري التوقع...';
+  imgStatus.className = 'status';
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const res = await fetch('/predict', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'حصل خطأ');
+    imgStatus.textContent = `تم التوقع ✓ (${file.name})`;
+    imgStatus.className = 'status ok';
+    renderResults(data.predicted, data.probabilities);
+  } catch (err) {
+    imgStatus.textContent = 'خطأ: ' + err.message;
+    imgStatus.className = 'status err';
+  }
+});
+
+function renderResults(predicted, probs) {
+  let barsHtml = '';
+  for (let d = 0; d < 10; d++) {
+    const pct = Math.round(probs[d] * 100);
+    const isTop = d === predicted;
+    barsHtml += `
+      <div class="bar-row">
+        <span class="bar-digit">${d}</span>
+        <div class="bar-track"><div class="bar-fill ${isTop ? 'top' : ''}" style="width:${pct}%"></div></div>
+        <span class="bar-pct">${pct}%</span>
+      </div>`;
+  }
+  resultsArea.innerHTML = `
+    <div class="pixel-box">
+      <img id="previewImg" src="${pixelPreviewUrl}" alt="الصورة المرفوعة">
+      <span class="caption">input image</span>
+    </div>
+    <div class="predict-box">
+      <div class="predicted-digit">${predicted}</div>
+      <div class="predicted-label">الرقم المتوقع</div>
+      <div class="bars">${barsHtml}</div>
+    </div>`;
+}
+</script>
+</body>
+</html>
